@@ -1,0 +1,52 @@
+# Render Blueprint for the AgriSmart AI FastAPI backend.
+# Free plan, no paid add-ons. Secrets are set in the Render dashboard
+# (sync: false) and are never committed.
+services:
+  - type: web
+    name: agrismart-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # --proxy-headers + FORWARDED_ALLOW_IPS let the app see the real client IP
+    # (Render terminates TLS at its proxy) so rate limiting keys correctly.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: ENABLE_API_DOCS
+        value: "false"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: AI_MAX_OUTPUT_TOKENS
+        value: "800"
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: WEATHER_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: none
+      - key: AI_API_KEY
+        sync: false
+      - key: MODEL_PATH
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ALLOWED_HOSTS
+        sync: false

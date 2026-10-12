@@ -1,0 +1,4 @@
+# Extra dependencies for training/exporting the crop-disease model.
+# Kept separate from requirements.txt: Render only needs inference (torch).
+torchvision>=0.19
+tqdm>=4.66

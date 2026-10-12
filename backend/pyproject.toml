@@ -1,0 +1,19 @@
+[tool.ruff]
+# Deploy target is Python 3.12 (see .python-version / render.yaml).
+target-version = "py312"
+line-length = 88
+extend-exclude = [".venv", "ml"]
+
+[tool.ruff.lint]
+# A focused, deterministic set: real errors + import hygiene + safe
+# modernizations. Kept intentionally small so the gate is trustworthy.
+select = ["E", "F", "I", "UP"]
+ignore = [
+    # Long lines are a readability concern, not a correctness one.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# conftest sets an env var before importing the app; the late import is
+# intentional.
+"tests/conftest.py" = ["E402"]
