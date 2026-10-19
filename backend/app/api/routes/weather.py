@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.api.deps import require_ai_access
 from app.core.rate_limit import WEATHER_RATE_LIMIT, limiter
 from app.schemas.weather import WeatherResponse
 from app.services.weather_client import WeatherError, fetch_weather
@@ -18,6 +19,7 @@ async def get_weather(
     q: str | None = None,
     lat: float | None = None,
     lon: float | None = None,
+    _auth: None = Depends(require_ai_access),
 ) -> WeatherResponse:
     """Return current weather and a short forecast for a location.
 

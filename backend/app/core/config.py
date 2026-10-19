@@ -31,6 +31,17 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
     supabase_jwt_secret: str = ""
+    # Optional issuer to pin when verifying Supabase JWTs. When empty and
+    # SUPABASE_URL is set, it defaults to "<SUPABASE_URL>/auth/v1".
+    supabase_jwt_issuer: str = ""
+    # Optional explicit JWKS endpoint for asymmetric (ES256/RS256) token
+    # verification. When empty and SUPABASE_URL is set, it defaults to
+    # "<SUPABASE_URL>/auth/v1/.well-known/jwks.json".
+    supabase_jwks_url: str = ""
+    # Accept legacy HS256 shared-secret tokens (ALLOW_LEGACY_HS256). Default
+    # true preserves current behaviour; set false for asymmetric-only projects
+    # so an HS256 token is rejected even when SUPABASE_JWT_SECRET is configured.
+    allow_legacy_hs256: bool = True
 
     # --- Weather ---
     weather_api_key: str = ""
@@ -64,6 +75,10 @@ class Settings(BaseSettings):
     rate_limit_weather: str = "60/minute"
     # In-memory by default (single instance). Use a Redis URI when scaling out.
     rate_limit_storage_uri: str = "memory://"
+    # Comma-separated proxy IPs whose X-Forwarded-For header is trusted when
+    # resolving a client's address. Empty means never trust the header and use
+    # the socket peer address instead.
+    trusted_proxy_ips: str = ""
 
     # --- Hardening / cost controls ---
     enable_api_docs: bool = True
@@ -75,10 +90,33 @@ class Settings(BaseSettings):
     allowed_hosts: str = "*"
     # Caps the assistant's reply length to bound provider cost.
     ai_max_output_tokens: int = 800
+    # When true, the AI/ML/weather endpoints require a valid Supabase token.
+    # Default false preserves guest mode; enable in production to curb abuse.
+    require_auth_for_ai: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def trusted_proxy_ip_list(self) -> list[str]:
+        return [ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip()]
+
+    @property
+    def expected_jwt_issuer(self) -> str:
+        if self.supabase_jwt_issuer:
+            return self.supabase_jwt_issuer.strip()
+        if self.supabase_url:
+            return f"{self.supabase_url.rstrip('/')}/auth/v1"
+        return ""
+
+    @property
+    def expected_jwks_url(self) -> str:
+        if self.supabase_jwks_url:
+            return self.supabase_jwks_url.strip()
+        if self.supabase_url:
+            return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        return ""
 
     @property
     def allowed_host_list(self) -> list[str]:

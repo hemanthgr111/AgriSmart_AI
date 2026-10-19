@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.api.deps import require_ai_access
 from app.core.rate_limit import CHAT_RATE_LIMIT, limiter
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.ai import AIError, active_provider, generate_reply
@@ -13,7 +14,11 @@ router = APIRouter(prefix="/chat", tags=["assistant"])
 
 @router.post("", response_model=ChatResponse)
 @limiter.limit(CHAT_RATE_LIMIT)
-async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
+async def chat(
+    request: Request,
+    payload: ChatRequest,
+    _auth: None = Depends(require_ai_access),
+) -> ChatResponse:
     """Send a conversation to the configured AI provider and return its reply.
 
     The provider and API key are configured server-side. If no provider is set,

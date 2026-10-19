@@ -4,9 +4,12 @@ An AI-powered agriculture app for farmers: crop disease detection, treatment
 guidance, real-time weather, a multilingual AI farmer assistant, and a farmer
 social community. Designed to run on **free-tier cloud services (target ₹0/month)**.
 
-> Status: **Phase 9 - Testing & deployment (complete).** All planned phases are
-> implemented and verified. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) to ship
-> and [docs/FREE_TIER.md](docs/FREE_TIER.md) for limits and cost controls.
+> Status: **Feature code implemented; end-to-end verification and deployment are
+> unverified.** All planned phases are implemented in code, but the database
+> migrations, live Supabase integration, and deployment have **not** been
+> completed or confirmed. See "Project verification status" below for known
+> blockers, [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) to ship, and
+> [docs/FREE_TIER.md](docs/FREE_TIER.md) for limits and cost controls.
 
 ## Architecture
 
@@ -202,14 +205,28 @@ authorization is enforced entirely by **Row Level Security** policies in
 [`backend/migrations/0002_community.sql`](backend/migrations/0002_community.sql).
 No community API runs on the FastAPI backend.
 
+> **Unverified / blocked:** the community client does **not** match the
+> previously recorded live schema, so this feature is currently non-functional.
+> Recorded mismatches include the likes table name (`post_likes` in the client
+> and `0002` vs `likes` live), the post/comment author column (`author_id` vs
+> `user_id`), the post image column (`image_path` vs `media_url`/`media_type`),
+> and the storage bucket (`community` vs `community-media`). The live schema has
+> **not** been freshly verified and `0002` has **not** been applied. No
+> client/schema reconciliation has been done yet.
+
 - Feed, composer, and post detail are in `frontend/lib/features/community/`.
-- Images are uploaded to the public `community` bucket under `<user_id>/...`;
-  only the owner can write/delete their own files.
+- Images are intended for a public storage bucket under `<user_id>/...` with
+  owner-only writes. The client currently targets `community`; a prior audit
+  recorded the live bucket as `community-media` (not freshly verified).
 - The feature requires sign-in. Without Supabase credentials the app runs in
   guest mode and the community screen shows a localized "not configured" state.
 
-Apply `0002_community.sql` after `0001_init.sql` (see
-[docs/SETUP_SUPABASE.md](docs/SETUP_SUPABASE.md)).
+> **Migrations not applied:** the migrations below have **not** been applied to
+> any database and their end-to-end effect is **not verified**. Apply in order -
+> `0004_schema_migrations.sql` (ledger), then `0001_init.sql`,
+> `0005_reconcile_profiles.sql`, and `0002_community.sql` for the community
+> feature (currently unresolved) - see
+> [docs/SETUP_SUPABASE.md](docs/SETUP_SUPABASE.md).
 
 ## Security & cost controls
 
@@ -259,7 +276,30 @@ code-level cost controls that keep the app within them.
 - HTTPS alone does not imply security - database/storage authorization is
   verified with RLS policies and tests.
 
+## Project verification status
+
+The following are **unverified or not yet done** in this working tree; do not
+treat them as complete:
+
+- **Database migrations have not been applied** to any database, and the live
+  Supabase schema has **not** been freshly verified (only a prior, recorded
+  audit exists).
+- **Deployment has not been confirmed:** there is no deploy evidence, and CI has
+  not run because the working tree is uncommitted.
+- **Crop disease model artifact is missing:** `backend/models/` is empty and
+  model files are gitignored, so `POST /api/diagnose` returns **503** until a
+  model is provided and `MODEL_PATH` is set. No model has been trained or
+  shipped here.
+- **Gemini API configuration is required** for live AI assistant responses;
+  with no provider or `AI_API_KEY` configured, the assistant returns **503**.
+- **Live Supabase credentials and integration remain unverified.**
+- **Community client/schema mismatches remain unresolved** (see "Farmer
+  community" above).
+
 ## Roadmap
+
+> Checked items reflect code implementation only; end-to-end verification and
+> deployment are not confirmed (see "Project verification status" above).
 
 - [x] Phase 1 - Inspection & plan
 - [x] Phase 2 - Application foundation

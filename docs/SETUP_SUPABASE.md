@@ -27,9 +27,19 @@ once; then the app can authenticate users.
 |---|---|---|
 | JWT secret | `SUPABASE_JWT_SECRET` (backend only) | **YES** |
 
-> If your project uses the newer asymmetric JWT signing keys, the backend's
-> `app/core/security.py` must be extended to verify via the project JWKS. The
-> current implementation verifies HS256 tokens with the JWT secret.
+> The backend verifies **both** signing modes. Legacy projects using the shared
+> secret (`HS256`) are validated with `SUPABASE_JWT_SECRET`; projects on the
+> newer asymmetric signing keys (`ES256`/`RS256`) are validated against the
+> project JWKS at `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` (override with
+> `SUPABASE_JWKS_URL`). The algorithm is taken from each token's header, so no
+> extra configuration is needed to switch modes.
+
+The backend derives the expected token **issuer** from `SUPABASE_URL`
+(`https://<project-ref>.supabase.co/auth/v1`, matching the `iss` claim in
+Supabase tokens); set `SUPABASE_JWT_ISSUER` only to override that default. When
+a user is signed in, the Flutter app sends their Supabase access token to the
+backend AI/ML/weather endpoints as `Authorization: Bearer <token>` (refreshing
+it on demand); in guest mode it sends no token.
 
 **Project Settings -> Database -> Connection string**
 
@@ -44,21 +54,59 @@ Put this in `DATABASE_URL` in `backend/.env`.
 
 ## 3. Apply the database migrations
 
-Run the migrations in order (each is idempotent and safe to re-run):
+Run the migrations in this order (each is idempotent and safe to re-run):
 
 1. **SQL Editor -> New query**.
 2. Paste the contents of
+   [`backend/migrations/0004_schema_migrations.sql`](../backend/migrations/0004_schema_migrations.sql)
+   and run it **first**. It creates the `public.schema_migrations` tracking
+   table and records its own execution. A migration may be recorded in this
+   ledger **only after** it executed successfully against the database in
+   question; no historical migration is pre-seeded, because the application
+   history of `0001`-`0003` is not verified.
+3. New query again. Paste the contents of
    [`backend/migrations/0001_init.sql`](../backend/migrations/0001_init.sql) and
-   run it. This creates the `profiles` table, enables Row Level Security, adds
-   ownership policies, and a trigger that creates a profile on signup.
-3. New query again. Paste and run
-   [`backend/migrations/0002_community.sql`](../backend/migrations/0002_community.sql).
-   This creates the `posts`, `comments`, and `post_likes` tables with RLS
-   policies, and creates the public `community` storage bucket with
-   owner-scoped upload/delete policies.
+   run it. This creates the base `profiles` table, enables Row Level Security,
+   adds ownership policies, the `updated_at` trigger, **and** the historical
+   `on_auth_user_created` signup trigger. Because `0001` is immutable, that
+   trigger still runs on a fresh database; the live database has none (profiles are created lazily by the backend). `0005` does not remove it.
+4. New query again. Paste and run
+   [`backend/migrations/0005_reconcile_profiles.sql`](../backend/migrations/0005_reconcile_profiles.sql).
+   This aligns `profiles` with the application contract: `username`,
+   `preferred_language` (default `'en'`), the unique index on `username`, and
+   NOT NULL `created_at`/`updated_at`. A prior audit recorded this as a no-op
+   on the live schema (**not freshly verified**).
 
-> The community bucket is created by the migration; no manual Storage setup is
-> required. Images are stored at `community/<user_id>/<timestamp>.jpg`.
+> An early, malformed reconcile draft (numbered `0003`) has been removed;
+> `0005` supersedes it. The community migration `0002` is a separate phase and
+> is **not** part of this change set; do not run it against the live database yet.
+> The community client is also known to mismatch the previously recorded live
+> schema (see the README), so community reconciliation remains **unresolved**.
+
+### Migration status and limitations
+
+- `0001`-`0003` predate the ledger; whether they were applied is **not
+  verified**. Never record them in `public.schema_migrations` without evidence
+  that they executed on the database in question.
+- None of the migrations in this guide have been applied to any database in this
+  working tree, and the live Supabase schema has **not** been freshly verified
+  (only a prior, recorded audit exists).
+- Fresh-database validation has **not** been performed (no isolated scratch
+  database is available). Before production use, validate the
+  `0004 -> 0001 -> 0005` sequence on a scratch database.
+- A fresh database runs `0001`'s historical `on_auth_user_created` signup
+  trigger (eager profile creation), whereas the live database has no such
+  trigger and creates profiles lazily. `0005` deliberately does not alter
+  `auth.users`, so this divergence is documented, not fixed; reconciling it
+  requires a separate, reviewed change.
+- Migrations are additive and forward-only; there is no automatic revert. To
+  recover from a failed run, fix the underlying data issue and re-run the same
+  file (it is idempotent).
+- Safe pre-flight checks before running `0005`:
+  - `SELECT count(*) FROM public.profiles WHERE created_at IS NULL OR updated_at IS NULL;` -> expect `0`.
+  - `SELECT username, count(*) FROM public.profiles GROUP BY username HAVING count(*) > 1;` -> expect no rows.
+- To validate without committing changes, wrap the migration in
+  `BEGIN; ... ROLLBACK;`.
 
 ## 4. Enable email/password auth
 
@@ -110,7 +158,8 @@ DATABASE_URL=postgresql+psycopg://...
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_ANON_KEY=<publishable-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role>   # backend only
-SUPABASE_JWT_SECRET=<jwt-secret>           # backend only
+SUPABASE_JWT_SECRET=<jwt-secret>           # backend only (legacy HS256 projects)
+SUPABASE_JWKS_URL=                         # optional; derived from SUPABASE_URL
 ```
 
 ## Free-tier notes

@@ -26,6 +26,10 @@ services:
         value: "true"
       - key: AI_MAX_OUTPUT_TOKENS
         value: "800"
+      # Guest mode is preserved by default; set to "true" to require a token on
+      # the AI/ML/weather endpoints.
+      - key: REQUIRE_AUTH_FOR_AI
+        value: "false"
       - key: FORWARDED_ALLOW_IPS
         value: "*"
       - key: DATABASE_URL
@@ -37,6 +41,12 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_JWT_ISSUER
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: TRUSTED_PROXY_IPS
         sync: false
       - key: WEATHER_API_KEY
         sync: false

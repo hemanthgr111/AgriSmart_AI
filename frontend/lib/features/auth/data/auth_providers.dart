@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
 import '../../../core/config/supabase_config.dart';
 import 'app_user.dart';
@@ -30,3 +31,23 @@ final StreamProvider<AppUser?> authStateProvider = StreamProvider<AppUser?>(
     return service.authStateChanges();
   },
 );
+
+/// Returns the current Supabase access token, or `null` when unavailable.
+///
+/// Uses `getSession()`, which refreshes an expired token on demand and returns
+/// `null` when there is no session. Any auth/network failure is swallowed so a
+/// stale session never breaks a request: the caller simply sends no token and
+/// is treated as an anonymous (guest) caller. When Supabase is not configured
+/// this returns `null`, preserving guest mode.
+Future<String?> currentSupabaseAccessToken() async {
+  if (!SupabaseConfig.isConfigured) {
+    return null;
+  }
+  try {
+    final sb.Session? session =
+        await sb.Supabase.instance.client.auth.getSession();
+    return session?.accessToken;
+  } on Exception {
+    return null;
+  }
+}

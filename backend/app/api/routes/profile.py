@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_id, get_db
@@ -49,10 +50,24 @@ def update_my_profile(
     if profile is None:
         profile = Profile(id=uid)
         db.add(profile)
-    if payload.full_name is not None:
-        profile.full_name = payload.full_name.strip()
-    if payload.bio is not None:
-        profile.bio = payload.bio.strip()
-    db.commit()
+    try:
+        if payload.full_name is not None:
+            profile.full_name = payload.full_name.strip() or None
+        if payload.bio is not None:
+            profile.bio = payload.bio.strip() or None
+        if payload.username is not None:
+            profile.username = payload.username.strip() or None
+        if payload.preferred_language is not None:
+            profile.preferred_language = payload.preferred_language.strip() or None
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That username is already taken.",
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(profile)
     return profile
