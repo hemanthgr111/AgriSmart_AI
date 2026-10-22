@@ -51,6 +51,7 @@ class CommunityPost {
     required this.content,
     required this.createdAt,
     required this.author,
+    this.userId,
     this.imageUrl,
     this.likeCount = 0,
     this.likedByMe = false,
@@ -60,32 +61,44 @@ class CommunityPost {
   final String content;
   final DateTime createdAt;
   final CommunityAuthor author;
+  final String? userId;
   final String? imageUrl;
   final int likeCount;
   final bool likedByMe;
 
   /// True when the signed-in user owns this post.
-  bool isMine(String? userId) => userId != null && author.id == userId;
+  bool isMine(String? currentUserId) =>
+      currentUserId != null &&
+      ((userId != null && userId == currentUserId) ||
+          author.id == currentUserId);
 
-  /// Builds a post from a PostgREST row with the embedded `author` and
-  /// `post_likes` relations.
+  /// Builds a post from a PostgREST row with likes relation.
   factory CommunityPost.fromJson(
     Map<String, dynamic> json, {
     required String? imageUrl,
     String? currentUserId,
+    CommunityAuthor? author,
   }) {
     final List<dynamic> likes =
-        (json['post_likes'] as List<dynamic>?) ?? const <dynamic>[];
+        (json['likes'] as List<dynamic>?) ??
+            (json['post_likes'] as List<dynamic>?) ??
+            const <dynamic>[];
     final bool likedByMe = currentUserId != null &&
         likes.any((dynamic l) =>
             l is Map && (l['user_id'] as String?) == currentUserId);
+    final String? postUserId = json['user_id'] as String? ??
+        json['author_id'] as String?;
+    final CommunityAuthor resolvedAuthor = author ??
+        CommunityAuthor.fromJson(
+          (json['author'] as Map<String, dynamic>?) ??
+              const <String, dynamic>{},
+        );
     return CommunityPost(
       id: json['id'] as String? ?? '',
       content: (json['content'] as String?) ?? '',
       createdAt: _parseDate(json['created_at']),
-      author: CommunityAuthor.fromJson(
-        (json['author'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
-      ),
+      author: resolvedAuthor,
+      userId: postUserId,
       imageUrl: imageUrl,
       likeCount: likes.length,
       likedByMe: likedByMe,
@@ -100,21 +113,37 @@ class CommunityComment {
     required this.content,
     required this.createdAt,
     required this.author,
+    this.userId,
   });
 
   final String id;
   final String content;
   final DateTime createdAt;
   final CommunityAuthor author;
+  final String? userId;
 
-  factory CommunityComment.fromJson(Map<String, dynamic> json) {
+  bool isMine(String? currentUserId) =>
+      currentUserId != null &&
+      ((userId != null && userId == currentUserId) ||
+          author.id == currentUserId);
+
+  factory CommunityComment.fromJson(
+    Map<String, dynamic> json, {
+    CommunityAuthor? author,
+  }) {
+    final String? commentUserId =
+        json['user_id'] as String? ?? json['author_id'] as String?;
+    final CommunityAuthor resolvedAuthor = author ??
+        CommunityAuthor.fromJson(
+          (json['author'] as Map<String, dynamic>?) ??
+              const <String, dynamic>{},
+        );
     return CommunityComment(
       id: json['id'] as String? ?? '',
       content: (json['content'] as String?) ?? '',
       createdAt: _parseDate(json['created_at']),
-      author: CommunityAuthor.fromJson(
-        (json['author'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
-      ),
+      author: resolvedAuthor,
+      userId: commentUserId,
     );
   }
 }
